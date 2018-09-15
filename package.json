@@ -1,0 +1,28 @@
+{
+  "name": "smart-locker-kiosk",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "parcel src/index.html"
+  },
+  "devDependencies": {
+    "@types/react": "^16.4.14",
+    "@types/react-dom": "^16.0.7",
+    "parcel-bundler": "^1.9.7",
+    "tslint": "^5.11.0",
+    "typescript": "^3.0.3"
+  },
+  "dependencies": {
+    "apollo-boost": "0.1.14",
+    "graphql": "^14.0.2",
+    "react": "^16.5.1",
+    "react-apollo": "^2.1.11",
+    "react-dom": "^16.5.1"
+  },
+  "alias": {
+    "core": "./src/modules/core",
+    "locker-cluster": "./src/modules/locker-cluster",
+    "system": "./src/system"
+  }
+}
