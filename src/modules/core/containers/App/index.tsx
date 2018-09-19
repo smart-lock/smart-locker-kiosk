@@ -1,9 +1,8 @@
 import React from 'react'
 import { ApolloProvider } from 'react-apollo'
 import { LockerCluster } from 'locker-cluster/containers/LockerCluster';
-import { client } from 'system/apollo';
 import mqtt from 'mqtt'
-
+import { client as apolloClient } from 'system/apollo';
 
 
 const mqttConfig = {
@@ -12,64 +11,153 @@ const mqttConfig = {
   user: 'lbwcbjvj',
   password: 'eND_kmHSQTYb'
 }
-const client  = mqtt.connect(`wss://${mqttConfig.user}:${mqttConfig.password}@${mqttConfig.host}:${mqttConfig.sslPort}`)
+const client = mqtt.connect(`wss://${mqttConfig.user}:${mqttConfig.password}@${mqttConfig.host}:${mqttConfig.sslPort}`)
 
 client.on('connect', function () {
-  client.subscribe('locker/1/dht')
-  client.subscribe('locker/1/button')
+  console.log('subscribing')
+  client.subscribe('locker/1/closed')
+  client.subscribe('locker/1/busy')
+  client.subscribe('locker/1/alarm')
+  client.subscribe('locker/1/locked')
+  client.subscribe('locker/1/error')
+})
+client.on('error', (error) => {
+  console.log(error)
 })
 
+const LOCKED_SRC = 'https://image.flaticon.com/icons/svg/26/26053.svg'
+const UNLOCKED_SRC = 'https://image.flaticon.com/icons/svg/158/158599.svg'
 
-
-export class App extends React.Component<{}, {h: number, t: number, buttonPressed: boolean, lastUpdate: Date | null}> {
-  constructor(props) {
+export interface IProps {
+  lastUpdate: Date | null,
+  closed: boolean,
+  locked: boolean,
+  busy: boolean,
+  alarm: boolean
+}
+export class App extends React.Component<{}, IProps> {
+  constructor(props: IProps) {
     super(props)
     this.state = {
-      h: 0,
-      t: 0,
-      buttonPressed: false,
       lastUpdate: null,
+      closed: false,
+      locked: false,
+      busy: false,
+      alarm: false,
     }
   }
-  handleDHT = (topic: string, message: string) => {
-    const [ h, t ] = message.split(':').map(Number)
+  private statusToBoolean = (status: string): boolean => status === '1'
+
+  handleClosed = (topic: string, message: string) => {
+    const closed= this.statusToBoolean(message)
     this.setState({
-      h,
-      t,
-      lastUpdate: new Date()
+      closed
     })
   }
 
-  handleButton = (topic: string, message: string) => {
-    const buttonPressed = message === '0' ? true : false
+  private handleLocked = (topic: string, message: string) => {
+    const locked = this.statusToBoolean(message)
     this.setState({
-      buttonPressed
+      locked,
     })
   }
+
+  private handleBusy = (topic: string, message: string) => {
+    const busy = this.statusToBoolean(message)
+    this.setState({
+      busy,
+    })
+  }
+
+  private handleAlarm = (topic: string, message: string) => {
+    const alarm = this.statusToBoolean(message)
+    this.setState({
+      alarm,
+    })
+  }
+  private handleError = (topic: string, message: string) => {
+    console.log(message);
+  }
   componentDidMount() {
+    console.log('here')
     client.on('message', (topic, data) => {
       const message = data.toString()
       switch (topic) {
-        case 'locker/1/dht':
-          this.handleDHT(topic, message)
+        case 'locker/1/closed':
+        this.handleClosed(topic, message)
           break;
-        case 'locker/1/button':
-        this.handleButton(topic, message)
+        case 'locker/1/locked':
+        this.handleLocked(topic, message)
+          break;
+        case 'locker/1/busy':
+        this.handleBusy(topic, message)
+          break;
+        case 'locker/1/alarm':
+        this.handleAlarm(topic, message)
+          break;
+        case 'locker/1/error':
+        this.handleError(topic, message)
           break;
       }
     })   
   }
   render() {
     const {
-      buttonPressed,
-      lastUpdate
+      lastUpdate,
+      closed,
+      locked,
+      busy,
+      alarm,
     } = this.state
-    const backgroundColor = buttonPressed ? 'tomato' : 'steelblue'
+    const imgSrc = locked ? LOCKED_SRC : UNLOCKED_SRC;
     return (
-      <ApolloProvider client={client}>
-        <div style={{height: '100%', width: '100%', backgroundColor }}>
-          <h1 style={{color: '#FFF'}}>Humidity: {this.state.h} / Temp: {this.state.t}</h1>
-          <h3>Last update: {lastUpdate ? lastUpdate.toString() : 'Loading...'}</h3>
+      <ApolloProvider client={apolloClient}>
+        <div style={{height: '100%', width: '100%' }}>
+          <img src={imgSrc} style={{width: 200, height: 200}}/>
+          <h3>{closed ? 'A porta está FECHADA' : 'A porta está ABERTA'}</h3>
+          <h3>{locked ? 'A trava BLOQUEADA' : 'A trava LIVRE'}</h3>
+          <h3>{busy ? 'O armário está OCUPADO' : 'O armário está LIVRE'}</h3>
+          <h3>{alarm ? 'O alarme está ATIVO' : 'O alarme está INATIVO'}</h3>
+          <button
+            onClick={() => {
+              client.publish('inTopic', '1')
+            }}>
+            CLAIM
+          </button>
+
+          <button
+            onClick={() => {
+              client.publish('inTopic', '2')
+            }}>
+            UNCLAIM
+          </button>
+
+          <button
+            onClick={() => {
+              client.publish('inTopic', '3')
+            }}>
+            DISABLE ALARM
+          </button>
+          <button
+            onClick={() => {
+              client.publish('inTopic', '6')
+            }}>
+            SUDO DISABLE ALARM
+          </button>
+
+          <button
+            onClick={() => {
+              client.publish('inTopic', '4')
+            }}>
+            LOCK
+          </button>
+
+          <button
+            onClick={() => {
+              client.publish('inTopic', '5')
+            }}>
+            UNLOCK
+          </button>
         </div>
       </ApolloProvider>
       
