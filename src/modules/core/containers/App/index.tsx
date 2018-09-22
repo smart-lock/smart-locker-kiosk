@@ -189,6 +189,13 @@ export class App extends React.Component<{}, IProps> {
               }}>
               UNLOCK
             </button>
+
+            <button
+              onClick={() => {
+                client.publish(`lockers/${macAddress}/${lockerIndex}/report`, `0:1:1:0`)
+              }}>
+              FAKE REPORT
+            </button>
           </div>
           
         </div>
