@@ -21,6 +21,9 @@ const mqttUri = `wss://${mqttConfig.user}:${mqttConfig.password}@${mqttConfig.ho
 console.log(mqttUri)
 const client = mqtt.connect(mqttUri)
 
+const randomBool = () => Math.random() > 0.5
+const booleanToInt = (bool: boolean) => bool ? 1 : 0;
+
 client.on('connect', function () {
   console.log('connected')
   client.subscribe('locker/1/closed')
@@ -192,7 +195,9 @@ export class App extends React.Component<{}, IProps> {
 
             <button
               onClick={() => {
-                client.publish(`lockers/${macAddress}/${lockerIndex}/report`, `0:1:1:0`)
+                const payload = [0,0,0,0].map(randomBool).map(booleanToInt).join(':')
+                console.log(payload)
+                client.publish(`lockers/${macAddress}/${lockerIndex}/report`, payload)
               }}>
               FAKE REPORT
             </button>
