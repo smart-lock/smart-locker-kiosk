@@ -1,5 +1,5 @@
 import ApolloClient from "apollo-boost";
 
-export const client = new ApolloClient({
-  uri: "https://smart-locker-api.herokuapp.com/smart-locker-api/dev",
+export const apolloClient = new ApolloClient({
+  uri: "http://192.168.1.34:3002",
 });
