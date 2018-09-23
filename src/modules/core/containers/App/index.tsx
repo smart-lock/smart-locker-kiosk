@@ -1,8 +1,8 @@
 import React from 'react'
 import { ApolloProvider } from 'react-apollo'
-import { LockerCluster } from 'locker-cluster/containers/LockerCluster';
 import mqtt from 'mqtt'
-import { client as apolloClient } from 'system/apollo';
+import {  apolloClient } from 'system/apollo';
+import gql from 'graphql-tag';
 
 const CMD_CLAIM = '1';
 const CMD_UNCLAIM = '2';
@@ -11,6 +11,14 @@ const CMD_LOCK ='4';
 const CMD_UNLOCK = '5';
 const CMD_SUDO_DEACTIVATE_ALARM ='6';
 
+const cmds = {
+  [CMD_CLAIM]: 'CMD_CLAIM',
+  [CMD_UNCLAIM]: 'CMD_UNCLAIM',
+  [CMD_DEACTIVATE_ALARM]: 'CMD_DEACTIVATE_ALARM',
+  [CMD_LOCK]: 'CMD_LOCK',
+  [CMD_UNLOCK]: 'CMD_UNLOCK',
+  [CMD_SUDO_DEACTIVATE_ALARM]: 'CMD_SUDO_DEACTIVATE_ALARM',
+}
 const mqttConfig = {
   host: 'm15.cloudmqtt.com',
   sslPort: 34771,
@@ -18,7 +26,6 @@ const mqttConfig = {
   password: 'eND_kmHSQTYb'
 }
 const mqttUri = `wss://${mqttConfig.user}:${mqttConfig.password}@${mqttConfig.host}:${mqttConfig.sslPort}`
-console.log(mqttUri)
 const client = mqtt.connect(mqttUri)
 
 const randomBool = () => Math.random() > 0.5
@@ -26,11 +33,7 @@ const booleanToInt = (bool: boolean) => bool ? 1 : 0;
 
 client.on('connect', function () {
   console.log('connected')
-  client.subscribe('locker/1/closed')
-  client.subscribe('locker/1/busy')
-  client.subscribe('locker/1/alarm')
-  client.subscribe('locker/1/locked')
-  client.subscribe('locker/1/error')
+  client.subscribe('lockers/2C:3A:E8:2F:06:BB')
 })
 client.on('error', (error) => {
   console.log(error)
@@ -63,61 +66,98 @@ export class App extends React.Component<{}, IProps> {
   }
   private statusToBoolean = (status: string): boolean => status === '1'
 
-  handleClosed = (topic: string, message: string) => {
-    const closed= this.statusToBoolean(message)
-    this.setState({
-      closed
-    })
-  }
-
-  private handleLocked = (topic: string, message: string) => {
-    const locked = this.statusToBoolean(message)
-    this.setState({
-      locked,
-    })
-  }
-
-  private handleBusy = (topic: string, message: string) => {
-    const busy = this.statusToBoolean(message)
-    this.setState({
+  reportState = () => {
+    const {
+      macAddress,
+      lockerIndex,
       busy,
-    })
-  }
-
-  private handleAlarm = (topic: string, message: string) => {
-    const alarm = this.statusToBoolean(message)
-    this.setState({
+      locked,
+      closed,
       alarm,
-    })
-  }
-  private handleError = (topic: string, message: string) => {
-    console.log(message);
+    } = this.state
+    const payload = [busy,locked,closed,alarm].map(booleanToInt).join(':')
+    client.publish(`lockers/${macAddress}/${lockerIndex}/report`, payload)
   }
   componentDidMount() {
     client.on('message', (topic, data) => {
       const message = data.toString()
-      switch (topic) {
-        case 'locker/1/closed':
-        this.handleClosed(topic, message)
+      const lockerIndex = message[0]
+      const cmd = message[1]
+
+      console.log(lockerIndex, (cmds as any)[cmd])
+      switch (cmd) {
+        case CMD_CLAIM:
+          this.setState({
+            busy: true,
+          }, this.reportState)
           break;
-        case 'locker/1/locked':
-        this.handleLocked(topic, message)
+        case CMD_UNCLAIM:
+          this.setState({
+            busy: false,
+          }, this.reportState)
           break;
-        case 'locker/1/busy':
-        this.handleBusy(topic, message)
+        case CMD_DEACTIVATE_ALARM:
+          this.setState({
+            alarm: false,
+          }, this.reportState)
           break;
-        case 'locker/1/alarm':
-        this.handleAlarm(topic, message)
+        case CMD_LOCK:
+          this.setState({
+            locked: true,
+          }, this.reportState)
           break;
-        case 'locker/1/error':
-        this.handleError(topic, message)
+        case CMD_UNLOCK:
+          this.setState({
+            locked: false,
+          }, this.reportState)
+          break;
+        case CMD_SUDO_DEACTIVATE_ALARM:
+          this.setState({
+            alarm: false,
+          }, this.reportState)
           break;
       }
-    })   
+    })
+
+    this.fetchBusyState()
+  }
+
+  private openDoor = () => {
+    this.setState({
+      closed: false
+    }, this.reportState)
+  }
+
+  private closeDoor = () => {
+    this.setState({
+      closed: true,
+    }, this.reportState)
+  }
+
+  private activateAlarm = () => {
+    this.setState({
+      alarm: true,
+    }, this.reportState)
+  }
+
+  private fetchBusyState = () => {
+    apolloClient.query({
+      query: gql`query {
+      lockerClusterByMacAddress(macAddress: "2C:3A:E8:2F:06:BB") {
+        id
+        lockers {
+          id
+          idInCluster
+          busy
+        }
+      }
+    }`})
+    .then((response) => {
+      console.log(response)
+    })
   }
   render() {
     const {
-      lastUpdate,
       closed,
       locked,
       busy,
@@ -126,9 +166,6 @@ export class App extends React.Component<{}, IProps> {
       lockerIndex,
     } = this.state
     const imgSrc = locked ? LOCKED_SRC : UNLOCKED_SRC;
-
-    const topic = `lockers/${macAddress}`
-    const cmdPrefix = `${lockerIndex}`
 
     return (
       <ApolloProvider client={apolloClient}>
@@ -152,45 +189,18 @@ export class App extends React.Component<{}, IProps> {
 
           <div style={{display: 'flex', flexDirection: 'row'}}>
             <button
-              onClick={() => {
-                client.publish(topic, `${cmdPrefix}${CMD_CLAIM}`)
-              }}>
-              CLAIM
+              onClick={this.openDoor}>
+              OPEN DOOR
             </button>
 
             <button
-              onClick={() => {
-                client.publish(topic, `${cmdPrefix}${CMD_UNCLAIM}`)
-              }}>
-              UNCLAIM
+              onClick={this.closeDoor}>
+              CLOSE DOOR
             </button>
 
             <button
-              onClick={() => {
-                client.publish(topic, `${cmdPrefix}${CMD_DEACTIVATE_ALARM}`)
-              }}>
-              DISABLE ALARM
-            </button>
-            <button
-              onClick={() => {
-                client.publish(topic, `${cmdPrefix}${CMD_SUDO_DEACTIVATE_ALARM}`)
-              }}>
-              SUDO DISABLE ALARM
-            </button>
-
-            <button
-              onClick={() => {
-                console.log(topic)
-                client.publish(topic, `${cmdPrefix}${CMD_LOCK}`)
-              }}>
-              LOCK
-            </button>
-
-            <button
-              onClick={() => {
-                client.publish(topic, `${cmdPrefix}${CMD_UNLOCK}`)
-              }}>
-              UNLOCK
+              onClick={this.activateAlarm}>
+              ALARM!
             </button>
 
             <button
