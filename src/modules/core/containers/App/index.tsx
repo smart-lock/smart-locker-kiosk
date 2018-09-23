@@ -61,7 +61,7 @@ export class App extends React.Component<{}, IProps> {
       busy: false,
       alarm: false,
       macAddress: '2C:3A:E8:2F:06:BB',
-      lockerIndex: '0',
+      lockerIndex: '1',
     }
   }
   private statusToBoolean = (status: string): boolean => status === '1'
@@ -76,6 +76,13 @@ export class App extends React.Component<{}, IProps> {
       alarm,
     } = this.state
     const payload = [busy,locked,closed,alarm].map(booleanToInt).join(':')
+    console.log(payload)
+    console.log({
+      busy,
+      locked,
+      closed,
+      alarm
+    })
     client.publish(`lockers/${macAddress}/${lockerIndex}/report`, payload)
   }
   componentDidMount() {
@@ -141,7 +148,7 @@ export class App extends React.Component<{}, IProps> {
   }
 
   private fetchBusyState = () => {
-    apolloClient.query({
+    apolloClient.query<any>({
       query: gql`query {
       lockerClusterByMacAddress(macAddress: "2C:3A:E8:2F:06:BB") {
         id
@@ -154,6 +161,10 @@ export class App extends React.Component<{}, IProps> {
     }`})
     .then((response) => {
       console.log(response)
+      const firstLocker = response.data.lockerClusterByMacAddress.lockers[0]
+      this.setState({
+        busy: firstLocker.busy,
+      }, this.reportState)
     })
   }
   render() {
@@ -183,7 +194,7 @@ export class App extends React.Component<{}, IProps> {
           <hr />
           <img src={imgSrc} style={{width: 200, height: 200, marginBottom: 20}}/>
           <span style={{marginBottom: 20}}>{closed ? 'A porta está FECHADA' : 'A porta está ABERTA'}</span>
-          <span style={{marginBottom: 20}}>{locked ? 'A trava BLOQUEADA' : 'A trava LIVRE'}</span>
+          <span style={{marginBottom: 20}}>{locked ? 'A trava TRAVADA' : 'A trava DESTRAVADA'}</span>
           <span style={{marginBottom: 20}}>{busy ? 'O armário está OCUPADO' : 'O armário está LIVRE'}</span>
           <span style={{marginBottom: 20}}>{alarm ? 'O alarme está ATIVO' : 'O alarme está INATIVO'}</span>
 
