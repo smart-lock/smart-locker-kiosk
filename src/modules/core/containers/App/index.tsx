@@ -147,6 +147,19 @@ export class App extends React.Component<{}, IProps> {
     }, this.reportState)
   }
 
+  private selectLocker = () => {
+    console.log('publishing')
+    client.publish('lockers/2C:3A:E8:2F:06:BB', '17');
+  }
+
+  private claimLocker = () => {
+    client.publish('lockers/2C:3A:E8:2F:06:BB', '11');
+  }
+
+  private unclaimLocker = () => {
+    client.publish('lockers/2C:3A:E8:2F:06:BB', `1${CMD_UNCLAIM}`);
+  }
+
   private fetchBusyState = () => {
     apolloClient.query<any>({
       query: gql`query {
@@ -214,6 +227,20 @@ export class App extends React.Component<{}, IProps> {
               ALARM!
             </button>
 
+            <button
+              onClick={this.selectLocker}>
+              SELECT LOCKER 1
+            </button>
+
+            <button
+              onClick={this.claimLocker}>
+              CLAIM
+            </button>
+
+            <button
+              onClick={this.unclaimLocker}>
+              UNCLAIM
+            </button>
             <button
               onClick={() => {
                 const payload = [0,0,0,0].map(randomBool).map(booleanToInt).join(':')
